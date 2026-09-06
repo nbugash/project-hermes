@@ -29,6 +29,7 @@ tasks.withType<Test>().configureEach {
 jmh {
     jmhVersion = "1.37"
     resultFormat = "JSON"
+
     // Explicit counts, matching the annotations: JMH's defaults take minutes per benchmark, which
     // makes the pull-request gate unusable. See the note in server/core/build.gradle.kts.
     fork = 1
@@ -42,3 +43,41 @@ dependencies {
     jmh("org.openjdk.jmh:jmh-core:1.37")
     jmhAnnotationProcessor("org.openjdk.jmh:jmh-generator-annprocess:1.37")
 }
+
+
+/**
+ * Fails unless every benchmark actually produced a result.
+ *
+ * JMH catches a benchmark's setup exception, reports it in its own output and exits zero — and
+ * `failOnError` does not cover it. A CI run once assembled a zero-byte corpus, measured nothing and
+ * went green. Checking the results file asserts the outcome rather than trusting the tool to report
+ * its own failure, which is the same reason the budget gate compares numbers instead of exit codes.
+ */
+val expectedBenchmarks = listOf(
+    "insertOneCharacter",
+    "insertOneCharacterWhileBroken",
+    "applyEditToMirror",
+    "tokenizeWholeDocument",
+)
+
+val verifyBenchmarksRan = tasks.register("verifyBenchmarksRan") {
+    description = "Fail if any benchmark is missing from the JMH results"
+    group = "verification"
+    val results = layout.buildDirectory.file("results/jmh/results.json")
+    inputs.file(results)
+
+    doLast {
+        val file = results.get().asFile
+        require(file.exists()) { "No JMH results at ${file.path}; the benchmarks did not run." }
+
+        val text = file.readText()
+        val missing = expectedBenchmarks.filterNot { text.contains("\"$it\"") || text.contains(".$it\"") }
+        require(missing.isEmpty()) {
+            "Benchmarks produced no result: $missing. A benchmark that cannot measure must fail the " +
+                "build rather than report an empty table."
+        }
+        logger.lifecycle("verified ${expectedBenchmarks.size} benchmarks produced results")
+    }
+}
+
+tasks.named("jmh") { finalizedBy(verifyBenchmarksRan) }

@@ -51,7 +51,10 @@ public class ErrorStateReparseBenchmark {
 
     @Setup(Level.Trial)
     public void setUp() throws Exception {
-        if (!Files.exists(CORPUS)) {
+        // Existence is not enough: an empty file exists. A CI run once assembled a zero-byte
+        // corpus, measured nothing, and reported success — a benchmark that cannot measure must
+        // fail loudly rather than print an empty table.
+        if (!Files.exists(CORPUS) || Files.size(CORPUS) < 1_000_000) {
             throw new IllegalStateException(
                     "RealCorpus.java is absent; run fixtures/large-java-file/build-real-corpus.sh");
         }
