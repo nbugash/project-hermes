@@ -117,15 +117,27 @@ jobs:
 
       - run: server/adapter-syntax/native/build-native.sh
 
-      # Budgets are compared relatively, baseline and candidate measured back-to-back on this same
-      # runner. Absolute thresholds are not used: hosted runners show around 2.7% coefficient of
-      # variation, so a 2% gate false-positives on roughly half of all runs. Warn near 5%, fail near
-      # 10%; sensitive detection belongs on the main-branch trend job, not here.
+      - name: Assemble the measurement corpus
+        # Not committed: it is assembled from third-party sources in the local Gradle cache, so it is
+        # regenerated here instead. The benchmarks refuse to run without it rather than silently
+        # measuring the synthetic fixture, which ADR-0002 showed gives a materially different number.
+        run: fixtures/large-java-file/build-real-corpus.sh
+
+      # The benchmarks live in :server:adapter-syntax, with the parser they measure. This job pointed
+      # at :server:core — which has the JMH plugin but no benchmarks — and failed with "No matching
+      # benchmarks" the first time it ever ran.
       #
-      # Explicit fork and iteration counts are mandatory. Default JMH parameters took 8m30s for a
+      # Explicit fork and iteration counts are mandatory: default JMH parameters took 8m30s for a
       # single trivial benchmark on comparable hardware.
       - name: Backend budget benchmarks
-        run: ./gradlew :server:core:jmh
+        run: ./gradlew :server:adapter-syntax:jmh
+
+      - name: Publish the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmh-results
+          path: server/adapter-syntax/build/results/jmh/results.json
 
   # ---------------------------------------------------------------------------
   # T094: two-tier performance gate.
