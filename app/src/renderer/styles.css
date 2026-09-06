@@ -1,0 +1,91 @@
+:root {
+  color-scheme: light dark;
+  --vega-bar-height: 2.25rem;
+}
+
+body {
+  margin: 0;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-shell__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: var(--vega-bar-height);
+  padding: 0 0.75rem;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+/* Degraded state is shown, not hidden: the window is interactive before analysis is ready, and
+   silence there reads as a broken editor rather than a starting one. */
+.app-shell__status[data-degraded='true'] {
+  opacity: 0.75;
+  font-style: italic;
+}
+
+/*
+ * Every level between the shell and Monaco's own container must both stretch and be allowed to
+ * shrink. A `flex: 1` on a child whose parent is not a flex container does nothing, and Monaco then
+ * measures a zero-height box and renders a single line — an editor that looks empty rather than
+ * broken, which is the hardest kind of layout bug to notice.
+ */
+.app-shell__editor,
+.editor-host {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-surface {
+  flex: 1;
+  min-height: 0;
+}
+
+
+/*
+ * The panel ships in the production build (SC-003), so it has to look like part of the product
+ * rather than a debug overlay: docked, dismissible, and out of the editor's way.
+ */
+.timing-panel {
+  width: 17rem;
+  flex: 0 0 auto;
+  padding: 0.75rem;
+  border-left: 1px solid rgba(128, 128, 128, 0.35);
+  overflow-y: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.timing-panel__figures {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.5rem;
+  margin: 0;
+}
+
+.timing-panel__figures dt {
+  opacity: 0.75;
+}
+
+.timing-panel__figures dd {
+  margin: 0;
+  text-align: right;
+}
+
+.timing-panel__scope {
+  margin-top: 0.75rem;
+  opacity: 0.7;
+}

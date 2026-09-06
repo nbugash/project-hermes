@@ -1,0 +1,37 @@
+{
+  "$comment": "Authoritative shapes for the vega/* custom LSP extensions. Two requests, both file I/O — the only operations standard LSP cannot express for this spike, and precisely the ones that must follow the backend when it later runs remotely. See specs/001-large-file-responsiveness/contracts/vega-extensions.md.",
+  "methods": {
+    "vega/readDocument": {
+      "direction": "clientToServer",
+      "type": "request",
+      "params": {
+        "uri": "string"
+      },
+      "result": {
+        "text": "string",
+        "encoding": "string",
+        "lineEnding": ["LF", "CRLF", "MIXED"],
+        "hasTrailingNewline": "boolean",
+        "contentHash": "string"
+      },
+      "$comment": "Shaped to mirror LSP 3.18 workspace/textDocumentContent so migration is a rename. That method was rejected for now: it designates its result read-only and carries no encoding metadata, both of which this spike requires."
+    },
+    "vega/saveDocument": {
+      "direction": "clientToServer",
+      "type": "request",
+      "params": {
+        "uri": "string",
+        "version": "integer",
+        "expectedContentHash": "string",
+        "baseContentHash": "string"
+      },
+      "result": {
+        "status": ["written", "failed", "mirror-mismatch", "disk-changed"],
+        "version": "integer?",
+        "contentHash": "string?",
+        "reason": "string?"
+      },
+      "$comment": "Text is deliberately absent from the payload: the server already holds a synchronised mirror, so sending 50k lines back to write bytes it has would be waste. The hashes make writing from the mirror safe by turning drift into an explicit status instead of silent corruption."
+    }
+  }
+}

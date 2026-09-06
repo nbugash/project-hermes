@@ -1,0 +1,34 @@
+{
+  "name": "vega-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json && mv dist/preload/bridge.js dist/preload/bridge.cjs && vite build",
+    "dev": "vite",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "e2e:fast": "playwright test --grep-invert @perf --workers=4",
+    "e2e:perf": "playwright test --grep @perf"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.56.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vscode-jsonrpc": "^9.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "electron": "^33.2.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vitest": "^2.1.8",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@types/node": "^22.10.2"
+  }
+}

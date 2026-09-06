@@ -1,0 +1,64 @@
+name: Performance trend
+
+# Runs on main only, and never blocks anything.
+#
+# The pull-request gate (ci.yml) catches a regression large enough to see in one comparison. It
+# cannot see the other shape of decay: a series of changes each a percent or two slower, none of
+# which trips a threshold, which together move a budget. That is what this looks for, over the
+# history of results rather than a single pair.
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, so the series keeps accumulating points even in a quiet period. Change-point detection
+    # on a sparse series is unreliable, and gaps are indistinguishable from stability.
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: Measure and detect change points
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Build native libraries
+        run: server/adapter-syntax/native/build-native.sh
+
+      - name: Assemble the measurement corpus
+        run: fixtures/large-java-file/build-real-corpus.sh
+
+      - name: Benchmark
+        run: ./gradlew :server:adapter-syntax:jmh
+
+      - name: Restore the history
+        uses: actions/cache@v4
+        with:
+          path: perf-history
+          key: perf-history-${{ github.run_id }}
+          restore-keys: perf-history-
+
+      - name: Append and analyse
+        # Deliberately never fails the build. A trend is a prompt to investigate, not a verdict on
+        # the commit that happened to be measured when it crossed a line — and a noisy blocking
+        # signal on main is one people learn to ignore.
+        continue-on-error: true
+        run: |
+          mkdir -p perf-history
+          python3 .github/scripts/detect-change-points.py \
+            server/adapter-syntax/build/results/jmh/results.json \
+            perf-history/series.json \
+            "${{ github.sha }}"
+
+      - name: Publish the series
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-history
+          path: perf-history/series.json

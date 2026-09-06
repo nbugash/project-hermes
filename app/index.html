@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      No remote origins: the renderer loads only what ships with the app. Monaco is bundled rather
+      than pulled from a CDN so the editor works offline and cannot be changed underneath the user.
+
+      worker-src allows blob: because Monaco creates its language workers from blob URLs. Without it
+      Monaco silently falls back to running tokenization on the main thread — it warns, and then the
+      UI stutters exactly where the responsiveness budget is measured.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"
+    />
+    <title>Vega</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/renderer/main.tsx"></script>
+  </body>
+</html>

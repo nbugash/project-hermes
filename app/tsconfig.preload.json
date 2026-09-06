@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist/preload",
+    "rootDir": "src/preload",
+    // Electron runs sandboxed preload scripts as CommonJS. An ESM preload silently fails to load,
+    // leaving the renderer with no bridge and no error explaining why.
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node", "electron"]
+  },
+  "include": ["src/preload"]
+}

@@ -1,0 +1,4 @@
+{
+  "protocolVersion": "1.0.0",
+  "note": "Version of the vega/* custom LSP extension surface. Editor and backend exchange this at initialize; a mismatch must fail startup loudly rather than surface later as a malformed response."
+}

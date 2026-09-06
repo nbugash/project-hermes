@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend tests, architecture rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build native tree-sitter libraries
+        # Built from pinned sources with -O3 -DNDEBUG. The flags are budget-critical: without
+        # NDEBUG, hot-path assertions stay compiled in and reparse cost roughly doubles.
+        run: server/adapter-syntax/native/build-native.sh
+
+      - name: Verify fixture digest
+        run: ./gradlew :fixtures:verifyFixtureDigest
+
+      - name: Unit and integration tests
+        run: ./gradlew build
+
+      - name: Architecture rules
+        # Separated so a boundary violation is legible in the job list rather than buried in a
+        # generic test failure.
+        run: ./gradlew :server:core:test --tests '*ArchitectureRulesTest*'
+
+  # ---------------------------------------------------------------------------
+  # T098: cross-platform verification.
+  #
+  # Every measurement and every native-loading path in this project was developed on Linux x86_64.
+  # The parts that differ by platform are the ones nothing local can check: whether
+  # `clang -dynamiclib` produces a loadable .dylib, whether the FFM linker opens it, and whether
+  # Electron runs. NativePackagingTest asserts the *decisions* on any machine; this job is what
+  # actually exercises them.
+  #
+  # Deliberately not `continue-on-error`. A macOS break should fail the build — the whole point is
+  # that the gap stops being invisible.
+  # ---------------------------------------------------------------------------
+  cross-platform:
+    name: Backend on ${{ matrix.os }}
+    strategy:
+      # Linux keeps running even if macOS breaks, so a platform-specific failure is legible as one
+      # rather than taking the whole matrix down with it.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build native tree-sitter libraries
+        # On macOS this is the first real test: it must produce .dylib with -dynamiclib. The runner
+        # supplies clang as `cc`, so no toolchain setup is needed.
+        run: server/adapter-syntax/native/build-native.sh
+
+      - name: Report what was built
+        # Cheap and worth having in the log: a platform mismatch is far easier to read here than in
+        # a missing-symbol error from the linker further down.
+        run: |
+          server/adapter-syntax/native/build-native.sh --print-target
+          ls -la server/adapter-syntax/src/main/resources/native/
+
+      - name: Backend tests
+        # Includes NativePackagingTest, which asserts the loader's expected names match what the
+        # build produced — the exact mismatch that made macOS install impossible until 2026-09-06.
+        run: ./gradlew build
+
+      - name: Load the native libraries for real
+        # The FFM linker actually opening the .dylib is the thing no amount of local testing could
+        # establish. TreeSitterSyntaxAdapterTest parses Java through it.
+        run: ./gradlew :server:adapter-syntax:test --tests '*TreeSitterSyntaxAdapterTest*'
+
+  frontend:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm --prefix app ci
+      - run: npm --prefix app run typecheck
+      - run: npm --prefix app test
+
+  performance:
+    name: Performance budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: server/adapter-syntax/native/build-native.sh
+
+      # Budgets are compared relatively, baseline and candidate measured back-to-back on this same
+      # runner. Absolute thresholds are not used: hosted runners show around 2.7% coefficient of
+      # variation, so a 2% gate false-positives on roughly half of all runs. Warn near 5%, fail near
+      # 10%; sensitive detection belongs on the main-branch trend job, not here.
+      #
+      # Explicit fork and iteration counts are mandatory. Default JMH parameters took 8m30s for a
+      # single trivial benchmark on comparable hardware.
+      - name: Backend budget benchmarks
+        run: ./gradlew :server:core:jmh
+
+  # ---------------------------------------------------------------------------
+  # T094: two-tier performance gate.
+  #
+  # Both the baseline and the candidate are measured back-to-back on the SAME runner, in the same
+  # job. Comparing against a stored number from another machine is the usual approach and it does
+  # not work here: research D9 measured hosted-runner variance alone at enough to trip a 2% gate
+  # roughly half the time. A relative comparison cancels the machine out.
+  #
+  # Two tiers because a single threshold has to be either noisy or useless: 5% warns, 10% fails.
+  # ---------------------------------------------------------------------------
+  performance-gate:
+    name: Performance gate (relative)
+    runs-on: ubuntu-latest
+    # Only on pull requests: this compares a branch against its base, which a push to main has no
+    # meaningful counterpart for. Trend detection on main is perf-trend.yml's job.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Build native libraries
+        run: server/adapter-syntax/native/build-native.sh
+
+      - name: Assemble the measurement corpus
+        # Benchmarks refuse to run without it rather than silently measuring the synthetic fixture,
+        # which ADR-0002 established gives a materially different number.
+        run: fixtures/large-java-file/build-real-corpus.sh
+
+      - name: Benchmark the candidate
+        run: ./gradlew :server:adapter-syntax:jmh
+      - name: Keep the candidate results
+        run: cp server/adapter-syntax/build/results/jmh/results.json candidate.json
+
+      - name: Check out the base commit
+        run: git checkout --force ${{ github.event.pull_request.base.sha }}
+
+      - name: Benchmark the base
+        # Same runner, same job, minutes apart. This is the only comparison that means anything.
+        run: ./gradlew :server:adapter-syntax:jmh
+      - name: Keep the base results
+        run: cp server/adapter-syntax/build/results/jmh/results.json base.json
+
+      - name: Compare
+        run: python3 .github/scripts/compare-benchmarks.py base.json candidate.json

@@ -1,0 +1,31 @@
+# Agent folder may hold credentials or tokens
+.claude/
+
+# Build outputs
+build/
+.gradle/
+node_modules/
+dist/
+out/
+
+# Native artifacts built from source
+server/adapter-syntax/native/build/
+*.so
+*.dylib
+*.dll
+
+# Benchmark and test output
+*.hprof
+test-results/
+playwright-report/
+
+# JVM crash dumps. Written into the working directory by a crashing JVM, and they carry local paths
+# and command lines.
+hs_err_pid*.log
+replay_pid*.log
+
+# Assembled from third-party sources in the local Gradle cache (AWS SDK, Jakarta, Kryo and others)
+# with package and import lines stripped. It is a derivative work whose licence headers no longer
+# sit with their imports, so it must not be redistributed here — and it is regenerable in a minute
+# with fixtures/large-java-file/build-real-corpus.sh.
+fixtures/large-java-file/RealCorpus.java
