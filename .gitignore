@@ -29,3 +29,4 @@ replay_pid*.log
 # sit with their imports, so it must not be redistributed here — and it is regenerable in a minute
 # with fixtures/large-java-file/build-real-corpus.sh.
 fixtures/large-java-file/RealCorpus.java
+fixtures/large-java-file/.sources/

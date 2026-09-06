@@ -11,15 +11,57 @@
 # is deliberate and sufficient — the measurement is of parsing, and tree-sitter resolves no names.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="${1:-fixtures/large-java-file/RealCorpus.java}"
 TARGET_LINES="${2:-50000}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-for pat in aws-java-sdk-core jakarta.persistence-api kryo5 opentest4j cache-api microprofile-jwt lz4-java; do
-  jar=$(find "$HOME/.gradle/caches" -name "*${pat}*-sources.jar" 2>/dev/null | head -1)
-  [ -n "$jar" ] && unzip -qo "$jar" -d "$WORK" '*.java' 2>/dev/null || true
+# Pinned Maven coordinates, fetched if they are not already in the local Gradle cache.
+#
+# The first version of this scavenged whatever sources jars happened to be in ~/.gradle. That worked
+# on a developer machine and failed on the first CI run it ever got: a fresh runner has no cache, and
+# `find` on a missing directory exits non-zero, which under `set -e` killed the script before it
+# printed anything. Naming the artifacts makes the corpus reproducible on any machine and identical
+# between them, which is what a benchmark input has to be.
+# kryo5 was here and publishes no sources jar for 5.5.0; it 404'd on every run while the corpus
+# reached its target line count without it. Removed rather than left to print an error each time.
+ARTIFACTS="
+com/amazonaws/aws-java-sdk-core/1.12.792/aws-java-sdk-core-1.12.792-sources.jar
+jakarta/persistence/jakarta.persistence-api/3.2.0/jakarta.persistence-api-3.2.0-sources.jar
+org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0-sources.jar
+javax/cache/cache-api/1.1.1/cache-api-1.1.1-sources.jar
+"
+
+CACHE_DIR="${VEGA_CORPUS_CACHE:-$SCRIPT_DIR/.sources}"
+mkdir -p "$CACHE_DIR"
+
+for path in $ARTIFACTS; do
+  jar_name="$(basename "$path")"
+  local_jar="$CACHE_DIR/$jar_name"
+
+  if [ ! -f "$local_jar" ]; then
+    # Prefer a copy already on the machine; only reach the network when there is not one.
+    cached="$(find "$HOME/.gradle/caches" -name "$jar_name" 2>/dev/null | head -1 || true)"
+    if [ -n "$cached" ]; then
+      cp "$cached" "$local_jar"
+    else
+      echo "==> fetching $jar_name"
+      curl -fsSL --retry 3 -o "$local_jar" "https://repo1.maven.org/maven2/$path" || {
+        echo "could not fetch $jar_name from Maven Central" >&2
+        rm -f "$local_jar"
+        continue
+      }
+    fi
+  fi
+
+  unzip -qo "$local_jar" -d "$WORK" '*.java' 2>/dev/null || true
 done
+
+if [ -z "$(find "$WORK" -name '*.java' -print -quit)" ]; then
+  echo "no Java sources were collected; cannot assemble the corpus" >&2
+  exit 1
+fi
 
 : > "$OUT"
 lines=0
