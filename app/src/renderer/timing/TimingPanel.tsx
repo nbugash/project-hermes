@@ -26,23 +26,23 @@ export function TimingPanel({
   return (
     <aside className="timing-panel" data-testid="timing-panel" aria-label="Timing">
       <header className="timing-panel__head">
-        <strong>Timing</strong>
+        <span>Timing</span>
         <button type="button" onClick={onClose} data-testid="timing-panel-close" aria-label="Close timing panel">
-          x
+          Close
         </button>
       </header>
 
       <dl className="timing-panel__figures">
-        <dt>Input to render p50</dt>
+        <dt>Keystroke to frame p50</dt>
         <dd data-testid="input-render-p50">{format(collector.inputToRenderP50())}</dd>
 
-        <dt>Input to render p95</dt>
+        <dt>Keystroke to frame p95</dt>
         <dd data-testid="input-render-p95">{format(collector.inputToRenderP95())}</dd>
 
-        <dt>Backend round trip p50</dt>
+        <dt>Backend p50</dt>
         <dd data-testid="round-trip-p50">{format(collector.roundTripP50())}</dd>
 
-        <dt>Backend round trip p95</dt>
+        <dt>Backend p95</dt>
         <dd data-testid="round-trip-p95">{format(collector.roundTripP95())}</dd>
       </dl>
 
@@ -52,8 +52,8 @@ export function TimingPanel({
       */}
       <p className="timing-panel__scope" data-testid="timing-panel-scope">
         {collector.samples().length === 0
-          ? 'No interactions recorded yet'
-          : `Over ${collector.samples().length} recent interactions (${interactions})`}
+          ? 'Nothing measured yet. Type to start.'
+          : `Last ${collector.samples().length} interactions — ${interactions}`}
       </p>
     </aside>
   );

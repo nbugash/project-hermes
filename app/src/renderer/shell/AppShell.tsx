@@ -5,6 +5,7 @@ import { TimingPanel } from '../timing/TimingPanel';
 import { afterNextFrame } from '../timing/probe';
 import { describeSaveOutcome, hashText } from '../editor/save';
 import type { LoadedDocument } from '../editor/load-document';
+import { StatusBar } from './StatusBar';
 import { describeBackendStatus, type BackendStatus } from './backend-status';
 import type { VegaBridge } from '../../preload/bridge';
 
@@ -29,6 +30,10 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
   const [reloadSignal, setReloadSignal] = useState(0);
   const [timingOpen, setTimingOpen] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  // Mirrored into state as well as the ref: the ref serves save without re-rendering per keystroke,
+  // while the status bar needs to actually repaint when a document loads.
+  const [openDocument, setOpenDocument] = useState<LoadedDocument | null>(null);
+  const [lineCount, setLineCount] = useState(0);
   const readText = useRef<() => string>(() => '');
   const loaded = useRef<LoadedDocument | null>(null);
 
@@ -92,7 +97,6 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
     // Normalised defensively: the mirror is LF, and hashing anything else guarantees a refusal
     // that looks like a synchronisation bug rather than an encoding difference.
     const text = readText.current().replace(/\r\n/g, '\n');
-    console.log('[diag] save len=' + text.length + ' tail=' + JSON.stringify(text.slice(-24)));
     const outcome = describeSaveOutcome(
       await bridge.saveDocument({
         uri: document.uri,
@@ -132,8 +136,13 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
   return (
     <div className="app-shell">
       <header className="app-shell__bar">
+        <span className="app-shell__mark">vega</span>
+        <span className="app-shell__file">{fileName(uri)}</span>
+
+        <span className="app-shell__spacer" />
+
         <button type="button" onClick={() => void openFile()} data-testid="open-file">
-          Open File…
+          Open file
         </button>
         <button type="button" onClick={() => void save()} data-testid="save">
           Save
@@ -146,6 +155,7 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
         >
           Timing
         </button>
+
         <span
           className="app-shell__status"
           data-testid="backend-status"
@@ -156,13 +166,18 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
       </header>
 
       {error ? (
-        <p role="alert" data-testid="load-error">
+        <p className="app-shell__message" data-tone="error" role="alert" data-testid="load-error">
           {error}
         </p>
       ) : null}
 
       {saveMessage ? (
-        <p role="status" data-testid="save-status">
+        <p
+          className="app-shell__message"
+          data-tone={saveMessage.startsWith('Saved') ? 'notice' : 'error'}
+          role="status"
+          data-testid="save-status"
+        >
           {saveMessage}
         </p>
       ) : null}
@@ -175,6 +190,8 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
           onError={setError}
           onLoaded={(document) => {
             loaded.current = document;
+            setOpenDocument(document);
+            setLineCount(document.text.split('\n').length);
           }}
           registerTextReader={(read) => {
             readText.current = read;
@@ -182,6 +199,16 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
         />
         {timingOpen ? <TimingPanel collector={collector} onClose={() => setTimingOpen(false)} /> : null}
       </main>
+
+      <StatusBar document={openDocument} lineCount={lineCount} collector={collector} />
     </div>
   );
+}
+
+/** The file's own name; the full path is not what a person scanning the title bar is looking for. */
+function fileName(uri: string | null): string {
+  if (uri === null) {
+    return 'No file open';
+  }
+  return decodeURIComponent(uri.slice(uri.lastIndexOf('/') + 1));
 }

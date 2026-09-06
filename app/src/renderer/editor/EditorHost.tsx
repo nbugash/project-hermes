@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as monaco from 'monaco-editor';
 import { VegaSemanticTokensProvider } from './SemanticTokensProvider';
-import { largeFileEditorOptions } from './editorOptions';
+import { defineVegaTheme, largeFileEditorOptions } from './editorOptions';
 import { loadDocument, type LoadedDocument } from './load-document';
 import type { VegaBridge } from '../../preload/bridge';
 
@@ -76,6 +76,9 @@ export function EditorHost({
     if (!container.current || editor.current) {
       return;
     }
+    // Defined before create, or the editor paints once with a default theme and visibly restyles.
+    defineVegaTheme(monaco);
+
     // Options live in one place so the large-file guards are visible and testable rather than
     // scattered through the component that happens to construct the editor.
     editor.current = monaco.editor.create(container.current, largeFileEditorOptions());

@@ -1,11 +1,53 @@
+/*
+ * Vega is not a general-purpose IDE and does not pretend to be one: there is no file tree, no tabs,
+ * no extensions, so there is no activity bar imitating an editor that has them. What it uniquely has
+ * is a live readout of its own latency, and the design is built around that — the vernacular is
+ * measuring instruments rather than code editors.
+ */
+
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+
 :root {
-  color-scheme: light dark;
-  --vega-bar-height: 2.25rem;
+  /* Graphite-blue rather than a tinted near-black: the hue is visible, and it gives the amber
+     something to sit against. */
+  --enclosure: #10151c;
+  --raised: #161d26;
+  --sunken: #0c1116;
+  --rule: #232d3a;
+
+  --paper: #d8e0ea;
+  --muted: #8494a6;
+  --faint: #5c6b7d;
+
+  /* Identity. Instrument-panel lamp amber, used once - the mark and focus rings. */
+  --lamp: #e8b04b;
+
+  /* Budget state. These encode information and appear nowhere decorative. */
+  --within: #48b08c;
+  --over: #e86a5e;
+
+  --bar: 2.5rem;
+  --status: 1.75rem;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--enclosure);
+  color: var(--paper);
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  /* Numbers change in place all over this interface; proportional figures would make them jitter. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
 .app-shell {
@@ -14,21 +56,102 @@ body {
   height: 100vh;
 }
 
+/* ---- title bar ------------------------------------------------------------------------------ */
+
 .app-shell__bar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  height: var(--vega-bar-height);
-  padding: 0 0.75rem;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+  gap: 1rem;
+  height: var(--bar);
+  padding: 0 0.875rem;
+  background: var(--raised);
+  border-bottom: 1px solid var(--rule);
+  flex: 0 0 auto;
 }
 
-/* Degraded state is shown, not hidden: the window is interactive before analysis is ready, and
-   silence there reads as a broken editor rather than a starting one. */
-.app-shell__status[data-degraded='true'] {
-  opacity: 0.75;
-  font-style: italic;
+.app-shell__mark {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--paper);
 }
+
+.app-shell__mark::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lamp);
+  /* The one lit thing in the chrome. */
+  box-shadow: 0 0 8px rgba(232, 176, 75, 0.5);
+}
+
+.app-shell__file {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell__spacer {
+  flex: 1;
+}
+
+.app-shell__bar button {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--muted);
+  font: inherit;
+  padding: 0.25rem 0.625rem;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.app-shell__bar button:hover {
+  color: var(--paper);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.app-shell__bar button[aria-pressed='true'] {
+  color: var(--paper);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:focus-visible {
+  outline: 2px solid var(--lamp);
+  outline-offset: 2px;
+}
+
+/* ---- backend state -------------------------------------------------------------------------- */
+
+.app-shell__status {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.app-shell__status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--within);
+}
+
+/* The window is interactive before analysis is ready, so "not ready yet" is a state to render
+   rather than an error to hide. */
+.app-shell__status[data-degraded='true']::before {
+  background: var(--faint);
+}
+
+/* ---- editor --------------------------------------------------------------------------------- */
 
 /*
  * Every level between the shell and Monaco's own container must both stretch and be allowed to
@@ -41,51 +164,154 @@ body {
   display: flex;
   flex: 1;
   min-height: 0;
+  /* min-width matters as much as min-height and is easier to forget. Monaco reports a large
+     intrinsic width, so without this the editor refuses to shrink, pushes the timing panel outside
+     the window and gives the whole shell a horizontal scrollbar. */
+  min-width: 0;
 }
 
 .editor-surface {
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 
+/* ---- messages ------------------------------------------------------------------------------- */
+
+.app-shell__message {
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--rule);
+  background: var(--sunken);
+  color: var(--paper);
+  flex: 0 0 auto;
+}
+
+.app-shell__message[data-tone='error'] {
+  border-left: 2px solid var(--over);
+}
+
+.app-shell__message[data-tone='notice'] {
+  border-left: 2px solid var(--within);
+}
+
+/* ---- status bar ----------------------------------------------------------------------------- */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  height: var(--status);
+  padding: 0 0.875rem;
+  background: var(--raised);
+  border-top: 1px solid var(--rule);
+  color: var(--faint);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.status-bar__spacer {
+  flex: 1;
+}
 
 /*
- * The panel ships in the production build (SC-003), so it has to look like part of the product
- * rather than a debug overlay: docked, dismissible, and out of the editor's way.
+ * The one loud thing in the interface. An editor that continuously reports its own input-to-render
+ * latency is this product's whole argument, so the number is always visible rather than buried in a
+ * panel, and it is coloured by whether it is meeting its budget.
  */
+.status-bar__latency {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--paper);
+}
+
+.status-bar__figure {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.status-bar__figure[data-state='within'] {
+  color: var(--within);
+}
+
+.status-bar__figure[data-state='over'] {
+  color: var(--over);
+}
+
+.status-bar__unit {
+  color: var(--faint);
+}
+
+.status-bar__spark {
+  display: block;
+  overflow: visible;
+}
+
+/* ---- timing panel --------------------------------------------------------------------------- */
+
 .timing-panel {
-  width: 17rem;
+  width: 15.5rem;
   flex: 0 0 auto;
-  padding: 0.75rem;
-  border-left: 1px solid rgba(128, 128, 128, 0.35);
+  padding: 0.875rem;
+  background: var(--sunken);
+  border-left: 1px solid var(--rule);
   overflow-y: auto;
-  font-variant-numeric: tabular-nums;
 }
 
 .timing-panel__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.875rem;
+  color: var(--paper);
+  font-weight: 500;
+}
+
+.timing-panel__head button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--faint);
+  font: inherit;
+  cursor: pointer;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+}
+
+.timing-panel__head button:hover {
+  color: var(--paper);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .timing-panel__figures {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 0.25rem 0.5rem;
+  gap: 0.5rem 0.75rem;
   margin: 0;
+  align-items: baseline;
 }
 
 .timing-panel__figures dt {
-  opacity: 0.75;
+  color: var(--muted);
 }
 
 .timing-panel__figures dd {
   margin: 0;
   text-align: right;
+  color: var(--paper);
+  font-weight: 500;
 }
 
 .timing-panel__scope {
-  margin-top: 0.75rem;
-  opacity: 0.7;
+  margin: 0.875rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+  color: var(--faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }
