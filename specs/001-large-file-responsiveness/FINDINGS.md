@@ -87,6 +87,26 @@ Each of these was silent — no exception, no failed test, until something was b
 
 ---
 
+## Measured after the fact: semantic-token requests cost a full tokenization
+
+Wiring the timing panel's backend rows to real data (rather than leaving them blank) put a number on
+something the benchmarks never isolated: **a semantic-token round trip measures 190–215 ms p50** on
+the 50,000-line corpus.
+
+The cause is in `VegaTextDocumentService`. Both `semanticTokens/full` and `semanticTokens/full/delta`
+call `fullTokens`, which walks the whole tree and encodes every token — 137 ms p50 by the T063
+benchmark — before the delta path diffs the result. **The delta saves transmission, not computation.**
+Meanwhile `HighlightService.reanalyse` already computes a narrowed token set for the edited region
+(T056) and nothing on the token-request path uses it.
+
+This is not a budget miss. Keystroke-to-frame is unaffected because Monaco paints text immediately
+and tokens arrive asynchronously; SC-004 measures the `didChange` reparse, which is a different path.
+What it costs is the delay before *colour* catches up after an edit — around a fifth of a second.
+
+Feeding the narrowed result into the delta response is the obvious next step, and it is a
+consequence of a design that was measured only where the budgets pointed. The instrument found it,
+which is the argument for shipping the instrument.
+
 ## What is not known
 
 - **macOS and Windows are entirely unverified.** Native packaging, library loading, and every timing

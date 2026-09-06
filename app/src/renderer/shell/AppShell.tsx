@@ -97,6 +97,7 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
     // Normalised defensively: the mirror is LF, and hashing anything else guarantees a refusal
     // that looks like a synchronisation bug rather than an encoding difference.
     const text = readText.current().replace(/\r\n/g, '\n');
+    const saveStarted = performance.now();
     const outcome = describeSaveOutcome(
       await bridge.saveDocument({
         uri: document.uri,
@@ -109,8 +110,9 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
       }),
     );
 
+    collector.recordBackendRoundTrip(performance.now() - saveStarted);
     setSaveMessage(outcome.message);
-  }, [bridge]);
+  }, [bridge, collector]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -195,6 +197,10 @@ export function AppShell({ bridge = window.vega }: { bridge?: VegaBridge }) {
           }}
           registerTextReader={(read) => {
             readText.current = read;
+          }}
+          onBackendRoundTrip={(milliseconds) => {
+            collector.recordBackendRoundTrip(milliseconds);
+            repaintTiming();
           }}
         />
         {timingOpen ? <TimingPanel collector={collector} onClose={() => setTimingOpen(false)} /> : null}

@@ -64,6 +64,29 @@ describe('TimingCollector', () => {
     expect(collector.samples()).toHaveLength(4);
   });
 
+  it('records a backend round trip without inventing an interaction', () => {
+    const collector = new TimingCollector();
+    collector.record({ kind: 'keystroke', inputToRenderMs: 5 });
+
+    collector.recordBackendRoundTrip(18);
+
+    // A request is not an interaction. Counting it as one would inflate "over N interactions" in the
+    // panel and imply the user did something they did not.
+    expect(collector.samples()).toHaveLength(1);
+    expect(collector.roundTripP50()).toBe(18);
+  });
+
+  it('reports round-trip percentiles from requests alone', () => {
+    const collector = new TimingCollector();
+    collector.recordBackendRoundTrip(10);
+    collector.recordBackendRoundTrip(30);
+
+    // No interaction was recorded at all, and the backend figures still work: requests happen on
+    // open and on save, not only in response to typing.
+    expect(collector.roundTripP50()).toBe(30);
+    expect(collector.inputToRenderP50()).toBeNull();
+  });
+
   it('counts interactions by kind so the panel can say what was measured', () => {
     const collector = new TimingCollector();
     collector.record({ kind: 'keystroke', inputToRenderMs: 1 });

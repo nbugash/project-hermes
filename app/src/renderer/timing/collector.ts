@@ -45,6 +45,17 @@ export class TimingCollector {
     }
   }
 
+  /**
+   * Records a backend request's duration on its own.
+   *
+   * Kept out of the interaction list deliberately: a request is not something the user did. Counting
+   * it as one would inflate the panel's "over N interactions" and imply activity that never
+   * happened — and requests also occur on open and on save, with no interaction behind them at all.
+   */
+  recordBackendRoundTrip(milliseconds: number): void {
+    this.roundTrip.add(milliseconds);
+  }
+
   samples(): readonly TimingSample[] {
     return this.recent;
   }

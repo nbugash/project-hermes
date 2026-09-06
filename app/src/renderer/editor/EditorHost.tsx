@@ -28,6 +28,7 @@ export function EditorHost({
   onLoaded,
   onError,
   registerTextReader,
+  onBackendRoundTrip,
 }: {
   bridge: VegaBridge;
   uri: string | null;
@@ -47,6 +48,14 @@ export function EditorHost({
    * A reader lets save pull the text once, when it is actually needed.
    */
   registerTextReader?: (read: () => string) => void;
+  /**
+   * Reports how long a backend request took, in milliseconds.
+   *
+   * Measured around the awaited call rather than by correlating request and response ids: the bridge
+   * is promise-based, so each call's promise already identifies its own result. A correlation id
+   * would add plumbing to solve an attribution problem that does not exist here.
+   */
+  onBackendRoundTrip?: (milliseconds: number) => void;
 }) {
   // Callbacks are held in refs and deliberately kept out of the effect dependencies below. Passed
   // as inline arrows by the caller they get a fresh identity on every render, and the shell
@@ -55,8 +64,10 @@ export function EditorHost({
   // surfaced only as a refused save much later.
   const onLoadedRef = useRef(onLoaded);
   const onErrorRef = useRef(onError);
+  const onRoundTripRef = useRef(onBackendRoundTrip);
   onLoadedRef.current = onLoaded;
   onErrorRef.current = onError;
+  onRoundTripRef.current = onBackendRoundTrip;
 
   const container = useRef<HTMLDivElement | null>(null);
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -89,8 +100,16 @@ export function EditorHost({
       'java',
       new VegaSemanticTokensProvider(
         {
-          requestTokens: (uri, previousResultId) =>
-            bridge.semanticTokens(uri, previousResultId) as Promise<never>,
+          requestTokens: async (uri, previousResultId) => {
+            // The analysis round trip, and the one that happens per edit — the figure the panel's
+            // backend rows are actually about.
+            const started = performance.now();
+            try {
+              return (await bridge.semanticTokens(uri, previousResultId)) as never;
+            } finally {
+              onRoundTripRef.current?.(performance.now() - started);
+            }
+          },
           documentVersion: () => version.current,
         },
         { tokenTypes: TOKEN_TYPES, tokenModifiers: TOKEN_MODIFIERS },
@@ -114,6 +133,7 @@ export function EditorHost({
     let cancelled = false;
     setLoading(true);
 
+    const loadStarted = performance.now();
     loadDocument(bridge, uri)
       .then((document) => {
         // A slower earlier load must not overwrite a newer one; without this guard, opening two
@@ -171,6 +191,9 @@ export function EditorHost({
         }
       })
       .finally(() => {
+        // Timed in `finally` so a failed read is measured too: a request that fails still cost the
+        // user the wait, and excluding failures would flatter the figure.
+        onRoundTripRef.current?.(performance.now() - loadStarted);
         if (!cancelled) {
           setLoading(false);
         }
