@@ -8,7 +8,7 @@ name: Performance trend
 # history of results rather than a single pair.
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   schedule:
     # Weekly, so the series keeps accumulating points even in a quiet period. Change-point detection
     # on a sparse series is unreliable, and gaps are indistinguishable from stability.
